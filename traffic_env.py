@@ -1,0 +1,212 @@
+import gymnasium as gym
+from gymnasium import spaces
+import numpy as np
+import os
+import sys
+import traci
+import sumolib
+import time
+
+# Ensure camera can be imported
+try:
+    from camera import IntersectionCamera
+except ImportError:
+    # If running from a different directory, might need adjustment
+    pass
+
+class TrafficLightEnv(gym.Env):
+    """
+    Custom Environment that follows gymnasium interface.
+    """
+    metadata = {'render_modes': ['human']}
+
+    def __init__(self, net_file="intersection.net.xml", route_file="traffic.rou.xml", use_gui=False, detection_dist=50):
+        super(TrafficLightEnv, self).__init__()
+        
+        self.net_file = net_file
+        self.route_file = route_file
+        self.use_gui = use_gui
+        self.detection_dist = detection_dist
+        
+        # Define Action Space:
+        # 0: Keep current phase
+        # 1: Switch to next phase
+        self.action_space = spaces.Discrete(2)
+        
+        # Define Observation Space:
+        # [North, South, East, West] density/count
+        # Using a Box space with adequate bounds.
+        self.observation_space = spaces.Box(low=0, high=100, shape=(4,), dtype=np.float32)
+        
+        self.camera = None
+        self.sumo_process = None
+        self.tls_id = None # Traffic Light ID
+        
+        # Check for SUMO binaries
+        self._setup_sumo_paths()
+
+    def _setup_sumo_paths(self):
+        # Add common SUMO paths if not in PATH
+        sumo_paths = [
+            r"C:\Program Files (x86)\Eclipse\Sumo\bin",
+            r"C:\Program Files\Eclipse\Sumo\bin"
+        ]
+        found_sumo = False
+        for path in sumo_paths:
+            if os.path.exists(path):
+                if path not in os.environ["PATH"]:
+                    os.environ["PATH"] += os.pathsep + path
+                if "SUMO_HOME" not in os.environ:
+                    os.environ["SUMO_HOME"] = os.path.dirname(path)
+                found_sumo = True
+                # break # Keep adding just in case
+
+    def reset(self, seed=None, options=None):
+        super().reset(seed=seed)
+        
+        # Close existing simulation if running
+        try:
+            traci.close()
+        except Exception:
+            pass
+
+        # Start SUMO
+        sumoBinary = "sumo-gui" if self.use_gui else "sumo"
+        try:
+            # Check if binary exists
+            sumolib.checkBinary(sumoBinary)
+        except Exception:
+            # Fallback to 'sumo' if sumo-gui not found or vice versa?
+            # Or just assume 'sumo' is in path if checkBinary fails locally
+            if self.use_gui:
+                sumoBinary = "sumo" # Fallback
+            else:
+                 pass # let it crash or rely on path
+
+        # Generate config on the fly? Or expect it to exist.
+        # We rely on sumo.sumocfg existing or we can pass args directly.
+        # Let's pass args directly to be safe/flexible.
+        
+        sumo_cmd = [
+            sumoBinary,
+            "-n", self.net_file,
+            "-r", self.route_file,
+            "--no-step-log", "true",
+            "--waiting-time-memory", "1000",
+            "--time-to-teleport", "-1" # Disable teleport for accurate waiting time
+        ]
+        
+        if self.use_gui and os.path.exists("view.settings.xml"):
+            sumo_cmd.extend(["--gui-settings-file", "view.settings.xml"])
+        
+        try:
+            traci.start(sumo_cmd)
+        except Exception as e:
+            print(f"Error starting SUMO: {e}")
+            raise e
+            
+        # Initialize Camera
+        # Note: Camera init reads net file, so it doesn't depend on traci connection 
+        # but get_state does.
+        if self.camera is None:
+             self.camera = IntersectionCamera(net_file=self.net_file, detection_distance=50)
+
+        # Get Traffic Light ID
+        # Assume there is one TLS in the network
+        tls_ids = traci.trafficlight.getIDList()
+        if tls_ids:
+            self.tls_id = tls_ids[0]
+        else:
+            print("Warning: No traffic light found in network.")
+            self.tls_id = None
+            
+        # Run a few steps to populate the road
+        for _ in range(5):
+             traci.simulationStep()
+             
+        observation = self._get_obs()
+        info = {}
+        
+        return observation, info
+
+    def _get_obs(self):
+        state = self.camera.get_state()
+        return np.array(state, dtype=np.float32)
+
+    def step(self, action):
+        # Apply Action
+        if self.tls_id:
+            if action == 1:
+                # Switch phase
+                # Simple logic: advance to next phase. 
+                # In SUMO, we can interpret 'next phase' as green for next direction.
+                # Or simply increment phase index.
+                current_phase = traci.trafficlight.getPhase(self.tls_id)
+                # Assuming simple setup: 0=NS Green, 1=NS Yellow, 2=EW Green, 3=EW Yellow
+                # Or generated by netgenerate: usually index increments.
+                
+                # To make it robust: set phase to (current + 1) % distinct_phases
+                # But switching immediately might be jarring.
+                # Let's just create a logical switch:
+                # If we want to switch, we trigger a phase change.
+                # But 'Action 1' usually means 'Change NOW'.
+                
+                next_phase = (current_phase + 1) % 4 # Assuming 4 phases standard
+                
+                # However, we must preserve yellow light logic if we want realism.
+                # For this simplified prompt: "Switch to next phase".
+                traci.trafficlight.setPhase(self.tls_id, next_phase)
+            else:
+                # Action 0: Keep phase.
+                # Do we need to extend the duration?
+                # traci.trafficlight.setPhaseDuration(self.tls_id, 1000) # Extend
+                pass
+
+        # Run Simulation Step
+        # The agent decides every step? Or every few seconds?
+        # Usually RL agents act every 5-10 seconds to allow traffic to clear.
+        # But for "50,000 timesteps", if we step every 1s, that's fine.
+        
+        traci.simulationStep()
+        
+        # Calculate Reward
+        # "Negative sum of squares of waiting times"
+        # Waiting time: accumulated waiting time of all vehicles
+        
+        reward = 0
+        # Get all edge IDs
+        edge_ids = traci.edge.getIDList()
+        total_waiting_time = 0
+        
+        for edge_id in edge_ids:
+            # Skip internal edges
+            if edge_id.startswith(":"):
+                continue
+            wt = traci.edge.getWaitingTime(edge_id)
+            total_waiting_time += wt
+            
+        # Reward: Minimize Total Waiting Time (Linear) for maximum efficiency/throughput
+        # Scale by 0.01 to keep reward magnitudes manageable for PPO
+        reward = -total_waiting_time * 0.01
+        
+        # Get Observation
+        observation = self._get_obs()
+        
+        # Check Done
+        # We can set a max step limit here or in the wrapper.
+        # SUMO simulation automatically ends when vehicles are exhausted if configured,
+        # but for RL we usually want fixed episode length.
+        terminated = False
+        truncated = False
+        if traci.simulation.getMinExpectedNumber() <= 0:
+             terminated = True
+             
+        info = {}
+        
+        return observation, reward, terminated, truncated, info
+
+    def close(self):
+        try:
+            traci.close()
+        except Exception:
+            pass
