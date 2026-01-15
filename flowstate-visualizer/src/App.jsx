@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Canvas, useFrame } from '@react-three/fiber';
 import { OrbitControls, Environment, ContactShadows, Float, Stars } from '@react-three/drei';
 import { EffectComposer, Bloom, Vignette } from '@react-three/postprocessing';
@@ -252,6 +252,7 @@ const Simulation = ({ mode, timeScale }) => {
   const [cars, setCars] = useState([]);
   const [lightStateNS, setLightStateNS] = useState('red');
   const [lightStateEW, setLightStateEW] = useState('green');
+  const aiState = useRef({ lastSwitch: 0 });
 
   useFrame((state, delta) => {
     // FIX: Use Real Delta for Fluidity
@@ -276,7 +277,7 @@ const Simulation = ({ mode, timeScale }) => {
     let nsColor = 'red';
     let ewColor = 'green';
 
-    if (isEmergency && mode === 'flowstate') {
+    if (isEmergency && mode === 'flux') {
       // PREEMPTION: Force Green for Ambulance
       if (ambulance.lane < 2) { nsColor = 'green'; ewColor = 'red'; }
       else { nsColor = 'red'; ewColor = 'green'; }
@@ -290,7 +291,7 @@ const Simulation = ({ mode, timeScale }) => {
       else if (cycle < 13) { nsColor = 'red'; ewColor = 'green'; }
       else { nsColor = 'red'; ewColor = 'yellow'; }
     } else {
-      // FLOWSTATE AI: Safe Fast Cycle (Green Wave Effect)
+      // FLUX AI: Safe Fast Cycle (Green Wave Effect)
       // Reverted sensor logic to ensure continuous flow without deadlocks.
       // 5s Total Cycle: 2s Green, 0.5s Yellow, 2.5s Red
       const cycle = (t % 5);
@@ -348,7 +349,7 @@ const Simulation = ({ mode, timeScale }) => {
       // Apply Individual Variance
       // AI Mode: Disable speed variance to ensure perfect "Green Wave" timing.
       // Baseline: Keep variance for chaos.
-      const isAI = mode === 'flowstate';
+      const isAI = mode === 'flux';
       const variance = isAI ? 1.0 : (car.speedFactor || 1.0);
       let targetSpeed = baseSpeed * variance;
 
@@ -474,7 +475,7 @@ export default function App() {
       }}>
         <div style={{ display: 'flex', alignItems: 'center', marginBottom: '16px' }}>
           <div style={{ width: '12px', height: '12px', borderRadius: '50%', background: '#00ffcc', boxShadow: '0 0 10px #00ffcc', marginRight: '10px' }}></div>
-          <h1 style={{ margin: 0, fontSize: '1.4rem', fontWeight: '700', letterSpacing: '-0.5px' }}>FLOWSTATE</h1>
+          <h1 style={{ margin: 0, fontSize: '1.4rem', fontWeight: '700', letterSpacing: '-0.5px' }}>FLUX</h1>
         </div>
 
         <p style={{ margin: '0 0 20px 0', fontSize: '0.85rem', color: '#889' }}>INTELLIGENT TRAFFIC CONTROL SYSTEM</p>
@@ -486,10 +487,10 @@ export default function App() {
             background: mode === 'baseline' ? '#ff3333' : 'transparent',
             color: mode === 'baseline' ? '#fff' : '#666', fontWeight: '600', transition: '0.3s'
           }}>BASELINE</button>
-          <button onClick={() => setMode('flowstate')} style={{
+          <button onClick={() => setMode('flux')} style={{
             flex: 1, padding: '8px', border: 'none', borderRadius: '6px', cursor: 'pointer',
-            background: mode === 'flowstate' ? '#00e676' : 'transparent',
-            color: mode === 'flowstate' ? '#000' : '#666', fontWeight: '600', transition: '0.3s'
+            background: mode === 'flux' ? '#00e676' : 'transparent',
+            color: mode === 'flux' ? '#000' : '#666', fontWeight: '600', transition: '0.3s'
           }}>AI OPTIMIZED</button>
         </div>
 
@@ -513,10 +514,10 @@ export default function App() {
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
           <div style={{ background: 'rgba(255,255,255,0.05)', padding: '12px', borderRadius: '8px' }}>
             <div style={{ fontSize: '0.7rem', color: '#aaa', marginBottom: '4px' }}>AVG WAIT TIME</div>
-            <div style={{ fontSize: '1.5rem', fontWeight: '700', color: mode === 'flowstate' ? '#00e676' : '#ff3333' }}>
+            <div style={{ fontSize: '1.5rem', fontWeight: '700', color: mode === 'flux' ? '#00e676' : '#ff3333' }}>
               {mode === 'baseline' ? '38.3s' : '21.8s'}
             </div>
-            {mode === 'flowstate' && <div style={{ fontSize: '0.7rem', color: '#00e676' }}>▼ 43% IMPROVEMENT</div>}
+            {mode === 'flux' && <div style={{ fontSize: '0.7rem', color: '#00e676' }}>▼ 43% IMPROVEMENT</div>}
           </div>
           <div style={{ background: 'rgba(255,255,255,0.05)', padding: '12px', borderRadius: '8px' }}>
             <div style={{ fontSize: '0.7rem', color: '#aaa', marginBottom: '4px' }}>THROUGHPUT</div>
