@@ -69,12 +69,15 @@ The showcase uses a simple rule-based controller so the demo is repeatable; the 
 
 **Live demo:** [azaxek.github.io/FlowState](https://azaxek.github.io/FlowState/)
 
+The scene shows fixed timing against a simple queue-aware controller on identical traffic, with live wait and throughput measured in the scene. It illustrates the idea; it is not the trained PPO model (those results are in the table above).
+
 [`flowstate-visualizer/`](flowstate-visualizer) is a React + Three.js scene that shows cars moving through an intersection, so the idea can be demonstrated without SUMO.
 
 ```bash
 cd flowstate-visualizer
 npm install
-npm run dev
+npm run dev          # http://localhost:5173
+node sim.test.mjs    # headless check: adaptive vs fixed timing in the scene
 ```
 
 ## Write-ups
