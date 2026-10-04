@@ -67,6 +67,8 @@ The showcase uses a simple rule-based controller so the demo is repeatable; the 
 
 ## 3D visualizer
 
+**Live demo:** [azaxek.github.io/FlowState](https://azaxek.github.io/FlowState/)
+
 [`flowstate-visualizer/`](flowstate-visualizer) is a React + Three.js scene that shows cars moving through an intersection, so the idea can be demonstrated without SUMO.
 
 ```bash
