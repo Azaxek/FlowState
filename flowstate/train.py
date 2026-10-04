@@ -3,28 +3,12 @@ import sys
 import gymnasium as gym
 from stable_baselines3 import PPO
 from stable_baselines3.common.env_checker import check_env
-from traffic_env import TrafficLightEnv
-
-# Ensure SUMO is in PATH (Redundant check but good for standalone execution)
-sumo_paths = [
-    r"C:\Program Files (x86)\Eclipse\Sumo\bin",
-    r"C:\Program Files\Eclipse\Sumo\bin"
-]
-found_sumo = False
-for path in sumo_paths:
-    if os.path.exists(path):
-        if path not in os.environ["PATH"]:
-            os.environ["PATH"] += os.pathsep + path
-        if "SUMO_HOME" not in os.environ:
-             os.environ["SUMO_HOME"] = os.path.dirname(path)
-        found_sumo = True
-
-if not found_sumo:
-    print("Warning: SUMO not found in common directories. Relying on system PATH.")
+from flowstate import config
+from flowstate.env import TrafficLightEnv
 
 def train_agent():
     print("Initializing Environment...")
-    env = TrafficLightEnv(net_file="intersection.net.xml", route_file="traffic.rou.xml", use_gui=False)
+    env = TrafficLightEnv(use_gui=False)
     
     # Check the environment
     print("Checking Environment Compliance...")
@@ -43,13 +27,13 @@ def train_agent():
         model.learn(total_timesteps=50000)
         print("Training Finished.")
         
-        model.save("flowstate_ppo_model")
-        print("Model saved as 'flowstate_ppo_model.zip'.")
+        model.save(config.MODEL_PATH)
+        print(f"Model saved to {config.MODEL_PATH}.zip")
         
     except KeyboardInterrupt:
         print("\nTraining interrupted by user. Saving model...")
-        model.save("flowstate_ppo_model")
-        print("Model saved as 'flowstate_ppo_model.zip'.")
+        model.save(config.MODEL_PATH)
+        print(f"Model saved to {config.MODEL_PATH}.zip")
     except Exception as e:
         print(f"Training failed: {e}")
         import traceback

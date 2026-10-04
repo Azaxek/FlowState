@@ -2,17 +2,11 @@ import gymnasium as gym
 from gymnasium import spaces
 import numpy as np
 import os
-import sys
 import traci
 import sumolib
-import time
 
-# Ensure camera can be imported
-try:
-    from camera import IntersectionCamera
-except ImportError:
-    # If running from a different directory, might need adjustment
-    pass
+from flowstate import config
+from flowstate.camera import IntersectionCamera
 
 class TrafficLightEnv(gym.Env):
     """
@@ -20,7 +14,7 @@ class TrafficLightEnv(gym.Env):
     """
     metadata = {'render_modes': ['human']}
 
-    def __init__(self, net_file="intersection.net.xml", route_file="traffic.rou.xml", use_gui=False, detection_dist=50):
+    def __init__(self, net_file=config.NET_FILE, route_file=config.ROUTE_FILE, use_gui=False, detection_dist=50):
         super(TrafficLightEnv, self).__init__()
         
         self.net_file = net_file
@@ -42,24 +36,7 @@ class TrafficLightEnv(gym.Env):
         self.sumo_process = None
         self.tls_id = None # Traffic Light ID
         
-        # Check for SUMO binaries
-        self._setup_sumo_paths()
-
-    def _setup_sumo_paths(self):
-        # Add common SUMO paths if not in PATH
-        sumo_paths = [
-            r"C:\Program Files (x86)\Eclipse\Sumo\bin",
-            r"C:\Program Files\Eclipse\Sumo\bin"
-        ]
-        found_sumo = False
-        for path in sumo_paths:
-            if os.path.exists(path):
-                if path not in os.environ["PATH"]:
-                    os.environ["PATH"] += os.pathsep + path
-                if "SUMO_HOME" not in os.environ:
-                    os.environ["SUMO_HOME"] = os.path.dirname(path)
-                found_sumo = True
-                # break # Keep adding just in case
+        config.ensure_sumo_on_path()
 
     def reset(self, seed=None, options=None):
         super().reset(seed=seed)
@@ -96,8 +73,8 @@ class TrafficLightEnv(gym.Env):
             "--time-to-teleport", "-1" # Disable teleport for accurate waiting time
         ]
         
-        if self.use_gui and os.path.exists("view.settings.xml"):
-            sumo_cmd.extend(["--gui-settings-file", "view.settings.xml"])
+        if self.use_gui and os.path.exists(config.VIEW_SETTINGS):
+            sumo_cmd.extend(["--gui-settings-file", config.VIEW_SETTINGS])
         
         try:
             traci.start(sumo_cmd)

@@ -6,19 +6,8 @@ import numpy as np
 import os
 import sys
 
-# Ensure SUMO path
-sumo_paths = [
-    r"C:\Program Files (x86)\Eclipse\Sumo\bin",
-    r"C:\Program Files\Eclipse\Sumo\bin"
-]
-for path in sumo_paths:
-    if os.path.exists(path):
-        if path not in os.environ["PATH"]:
-            os.environ["PATH"] += os.pathsep + path
-        if "SUMO_HOME" not in os.environ:
-             os.environ["SUMO_HOME"] = os.path.dirname(path)
-
-from traffic_env import TrafficLightEnv
+from flowstate import config
+from flowstate.env import TrafficLightEnv
 
 
 def run_simulation_metrics(env, model=None, label="Simulation"):
@@ -97,14 +86,14 @@ def run_simulation_metrics(env, model=None, label="Simulation"):
 
 if __name__ == "__main__":
     # Setup Env
-    env = TrafficLightEnv(net_file="intersection.net.xml", route_file="traffic.rou.xml", use_gui=False)
+    env = TrafficLightEnv(use_gui=False)
     
     # metrics: wait, co2, max_queue, throughput
     b_wait, b_co2, b_queue, b_thru = run_simulation_metrics(env, model=None, label="Baseline")
     env.close() 
     
-    env = TrafficLightEnv(net_file="intersection.net.xml", route_file="traffic.rou.xml", use_gui=False)
-    model = PPO.load("flowstate_ppo_model")
+    env = TrafficLightEnv(use_gui=False)
+    model = PPO.load(config.MODEL_PATH)
     a_wait, a_co2, a_queue, a_thru = run_simulation_metrics(env, model=model, label="FlowState AI")
     env.close()
     
@@ -123,21 +112,10 @@ if __name__ == "__main__":
     thru_imp = ((a_thru - b_thru) / b_thru) * 100
     print(f"{'Total Throughput':<20} | {b_thru:<12} | {a_thru:<12} | {thru_imp:+.2f}%")
     
-    # Calculate Economic Impact (Hypothetical)
-    # Assumptions: 50k cars/day, $20/hr value of time
-    # Time saved per car (seconds) = (b_wait - a_wait) is per step accumulation, 
-    # but let's treat the relative % improvement as the key driver.
-    # Actually 'Avg Wait Time' here is 'Total Wait Time of All Cars per Step', which captures density.
-    # Let's normalize to approximate 'seconds saved per trip' using step count or just use the % to project.
-    
+    # Illustrative projection only, not measured: assumes 50,000 vehicles/day,
+    # 15 s saved per trip and $20/hr value of time (~76,000 hours, ~$1.52M per year).
     print("-" * 65)
-    print("PROJECTED ANNUAL IMPACT (Per Intersection)")
-    
-    # Conservative estimate: Save 15 seconds per vehicle trip
-    # 50,000 vehicles/day * 15s = 750,000s = ~208 hours saved/day
-    # 208 * 365 = 75,920 hours/year
-    # $20 * 75,920 = ~$1.5 Million
-    
+    print("ILLUSTRATIVE ANNUAL IMPACT PER INTERSECTION (assumed, not measured)")
     print(f"Productivity Saved: $1.52 Million / Year")
     print(f"Hours Returned:     76,000+ Hours / Year")
     print("="*65)

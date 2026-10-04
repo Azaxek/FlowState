@@ -3,8 +3,10 @@ import traci
 import sumolib
 import math
 
+from flowstate import config
+
 class IntersectionCamera:
-    def __init__(self, net_file="intersection.net.xml", detection_distance=50):
+    def __init__(self, net_file=config.NET_FILE, detection_distance=50):
         self.detection_distance = detection_distance
         self.directions = ["North", "South", "East", "West"]
         self.lane_map = {d: [] for d in self.directions}

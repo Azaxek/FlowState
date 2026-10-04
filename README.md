@@ -10,7 +10,7 @@ FlowState trains a reinforcement-learning agent to run a four-way intersection. 
 | Maximum queue length | - | - | -7.14% |
 | CO2 (idle-time estimate) | 24,892,375 mg | 24,535,077 mg | -1.44% |
 
-Raw output is in [`eval_results.txt`](eval_results.txt) and [`eval_advanced.txt`](eval_advanced.txt).
+Raw output is in [`results/`](results).
 
 ## How it works
 
@@ -20,29 +20,50 @@ Raw output is in [`eval_results.txt`](eval_results.txt) and [`eval_advanced.txt`
                      approach, noisy)    action space)     phase or switch)
 ```
 
-1. **Simulation.** [SUMO](https://eclipse.dev/sumo/) models a four-way intersection with random (Poisson) traffic: [`intersection.net.xml`](intersection.net.xml), [`traffic.rou.xml`](traffic.rou.xml).
-2. **Perception.** [`camera.py`](camera.py) is a virtual camera. It counts vehicles approaching from the North, South, East and West. Five percent Gaussian noise is added so the agent has to cope with imperfect sensing, like a real camera.
-3. **Environment.** [`traffic_env.py`](traffic_env.py) wraps the simulation as a Gymnasium environment.
+1. **Simulation.** [SUMO](https://eclipse.dev/sumo/) models a four-way intersection with random (Poisson) traffic: [`sumo/`](sumo).
+2. **Perception.** [`flowstate/camera.py`](flowstate/camera.py) is a virtual camera. It counts vehicles approaching from the North, South, East and West. Five percent Gaussian noise is added so the agent has to cope with imperfect sensing, like a real camera.
+3. **Environment.** [`flowstate/env.py`](flowstate/env.py) wraps the simulation as a Gymnasium environment.
    - Observation: four vehicle counts, one per direction.
    - Action: keep the current signal phase or switch.
    - Reward: negative total waiting time, scaled for stable training.
-4. **Agent.** A PPO policy from Stable-Baselines3 ([`step3_train.py`](step3_train.py)). The trained model is saved as [`flux_ppo_model.zip`](flux_ppo_model.zip).
+4. **Agent.** A PPO policy from Stable-Baselines3 ([`flowstate/train.py`](flowstate/train.py)). The trained model is saved in [`models/`](models).
 
 A planned safety layer would sit between the agent and the lights, enforcing minimum green times and pedestrian walk intervals, so the AI can only request changes. The write-up describes this design, and emergency-vehicle priority as future work.
 
+## Project layout
+
+```
+flowstate/            Python package
+  config.py           paths and SUMO setup, shared by everything
+  camera.py           virtual camera sensor
+  env.py              Gymnasium environment
+  generate_scenario.py   build the intersection, traffic and SUMO config
+  verify_camera.py    sanity-check the camera readings
+  train.py            train the PPO agent
+  evaluate.py         compare the agent with the fixed-time baseline
+  showcase.py         side-by-side demo in the SUMO GUI
+sumo/                 network, routes and config files
+models/               trained PPO model
+results/              evaluation output
+docs/                 competition write-ups
+flowstate-visualizer/ React + Three.js demo
+```
+
 ## Run it
 
-You need Python 3.10+ and [SUMO](https://eclipse.dev/sumo/) installed (the scripts look in the default Windows install folders).
+You need Python 3.10+ and [SUMO](https://eclipse.dev/sumo/). On Windows the default install folders are detected automatically; otherwise put SUMO on your `PATH`.
 
 ```bash
-pip install gymnasium stable-baselines3 numpy traci sumolib
+pip install -r requirements.txt
 
-python step1_setup.py          # check SUMO and generate traffic
-python step2_verify_camera.py  # confirm the virtual camera sees cars
-python step3_train.py          # train the PPO agent (about 50,000 steps)
-python step4_evaluate.py       # compare against the fixed-time baseline
-python step5_showcase.py       # watch the trained agent in the SUMO GUI
+python -m flowstate.generate_scenario   # optional: regenerate the intersection and traffic
+python -m flowstate.verify_camera       # confirm the virtual camera sees cars
+python -m flowstate.train               # train the PPO agent (50,000 steps)
+python -m flowstate.evaluate            # compare against the fixed-time baseline
+python -m flowstate.showcase            # side-by-side demo in the SUMO GUI
 ```
+
+The showcase uses a simple rule-based controller so the demo is repeatable; the PPO results come from `evaluate`. The "annual impact" figure that `evaluate` prints is an illustrative projection from stated assumptions, not a measurement.
 
 ## 3D visualizer
 
@@ -56,8 +77,8 @@ npm run dev
 
 ## Write-ups
 
-- [`Presidential_Challenge_Technical.md`](Presidential_Challenge_Technical.md): architecture, why PPO over DQN, safety design, and results.
-- [`Diamond_Challenge_Narrative.md`](Diamond_Challenge_Narrative.md): the problem, the sensor-agnostic business case, and the pitch.
+- [`docs/Presidential_Challenge_Technical.md`](docs/Presidential_Challenge_Technical.md): architecture, why PPO over DQN, safety design, and results.
+- [`docs/Diamond_Challenge_Narrative.md`](docs/Diamond_Challenge_Narrative.md): the problem, the sensor-agnostic business case, and the pitch.
 
 ## Tech stack
 

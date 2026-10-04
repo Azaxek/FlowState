@@ -4,25 +4,10 @@ import subprocess
 import random
 import traci
 import sumolib
+import traceback
 
-# Add common SUMO paths to PATH for this script execution
-sumo_paths = [
-    r"C:\Program Files (x86)\Eclipse\Sumo\bin",
-    r"C:\Program Files\Eclipse\Sumo\bin"
-]
-found_sumo = False
-for path in sumo_paths:
-    if os.path.exists(path):
-        os.environ["PATH"] += os.pathsep + path
-        # Set SUMO_HOME to the parent directory of bin
-        sumo_home = os.path.dirname(path)
-        os.environ["SUMO_HOME"] = sumo_home
-        print(f"Set SUMO_HOME to: {sumo_home}")
-        found_sumo = True
-        break
+from flowstate import config
 
-if not found_sumo:
-    print("Warning: Could not find SUMO in common directories.")
 
 
 def generate_network():
@@ -36,7 +21,7 @@ def generate_network():
     
     # First generate the geometry (basic spider network)
     # Removing --tls.guess here as it was flaky. We will force it next.
-    cmd_gen = ["netgenerate", "--spider", "--spider.arm-number=4", "--output-file=intersection.net.xml", "--no-turnarounds"]
+    cmd_gen = ["netgenerate", "--spider", "--spider.arm-number=4", f"--output-file={config.NET_FILE}", "--no-turnarounds"]
     
     try:
         print("Running netgenerate...")
@@ -46,8 +31,8 @@ def generate_network():
         print("Forcing Traffic Light on junction A1...")
         cmd_convert = [
             "netconvert", 
-            "--sumo-net-file", "intersection.net.xml", 
-            "--output-file", "intersection.net.xml",
+            "--sumo-net-file", config.NET_FILE, 
+            "--output-file", config.NET_FILE,
             "--tls.set", "A1",
             "--tls.green.time", "30",
             "--tls.yellow.time", "3"
@@ -68,7 +53,7 @@ def generate_routes():
     
     # Load the network to find edge IDs
     try:
-        net = sumolib.net.readNet('intersection.net.xml')
+        net = sumolib.net.readNet(config.NET_FILE)
         edges = net.getEdges()
         edge_ids = [e.getID() for e in edges]
         # Filter for normal edges (not internal ones starting with :)
@@ -83,7 +68,7 @@ def generate_routes():
         print(f"Error reading net file: {e}")
         return
 
-    with open("traffic.rou.xml", "w") as routes:
+    with open(config.ROUTE_FILE, "w") as routes:
         print("""<routes>
     <vType id="car" accel="0.8" decel="4.5" sigma="0.5" length="5" minGap="2.5" maxSpeed="16.67" guiShape="passenger"/>""", file=routes)
         
@@ -118,7 +103,7 @@ def generate_routes():
 
 def generate_config():
     print("Generating configuration file (sumo.sumocfg)...")
-    with open("sumo.sumocfg", "w") as cfg:
+    with open(config.SUMO_CONFIG, "w") as cfg:
         print("""<configuration>
     <input>
         <net-file value="intersection.net.xml"/>
@@ -133,8 +118,6 @@ def generate_config():
     </report>
 </configuration>""", file=cfg)
     print("Configuration file generated.")
-
-import traceback
 
 def run_simulation():
     print("Starting simulation...")
@@ -151,7 +134,7 @@ def run_simulation():
     except Exception:
         sumoBinary = 'sumo'
 
-    sumoCmd = [sumoBinary, "-c", "sumo.sumocfg"]
+    sumoCmd = [sumoBinary, "-c", config.SUMO_CONFIG]
     print(f"Running command: {sumoCmd}")
     
     try:

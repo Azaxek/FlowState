@@ -5,30 +5,8 @@ import time
 import traci
 import sumolib
 
-# Add common SUMO paths (copied from step1_setup.py)
-sumo_paths = [
-    r"C:\Program Files (x86)\Eclipse\Sumo\bin",
-    r"C:\Program Files\Eclipse\Sumo\bin"
-]
-found_sumo = False
-for path in sumo_paths:
-    if os.path.exists(path):
-        os.environ["PATH"] += os.pathsep + path
-        # Set SUMO_HOME to the parent directory of bin
-        sumo_home = os.path.dirname(path)
-        os.environ["SUMO_HOME"] = sumo_home
-        found_sumo = True
-        break
-
-if not found_sumo:
-    print("Warning: Could not find SUMO in common directories. Relying on system PATH.")
-
-# Import the camera class
-try:
-    from camera import IntersectionCamera
-except ImportError:
-    print("Error: Could not import IntersectionCamera from camera.py")
-    sys.exit(1)
+from flowstate import config
+from flowstate.camera import IntersectionCamera
 
 def verify_camera():
     print("Starting Camera Verification...")
@@ -39,7 +17,7 @@ def verify_camera():
     except Exception:
         sumoBinary = 'sumo'
         
-    sumoCmd = [sumoBinary, "-c", "sumo.sumocfg"]
+    sumoCmd = [sumoBinary, "-c", config.SUMO_CONFIG]
     print(f"Running command: {sumoCmd}")
     
     try:
@@ -50,7 +28,7 @@ def verify_camera():
         # Must be done after traci.start so traci methods work? 
         # Actually my camera uses sumolib to read net file, which doesn't require traci.
         # But get_state uses traci.
-        camera = IntersectionCamera(net_file="intersection.net.xml", detection_distance=50)
+        camera = IntersectionCamera(net_file=config.NET_FILE, detection_distance=50)
         
         print("\nStep | North | South | East  | West  | Total")
         print("-" * 50)

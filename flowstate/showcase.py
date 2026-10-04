@@ -1,31 +1,13 @@
-import gymnasium as gym
-from stable_baselines3 import PPO
 import traci
-import sumolib
-import sys
-import os
-import time
 
-# Ensure SUMO path
-sumo_paths = [
-    r"C:\Program Files (x86)\Eclipse\Sumo\bin",
-    r"C:\Program Files\Eclipse\Sumo\bin"
-]
-for path in sumo_paths:
-    if os.path.exists(path):
-        if path not in os.environ["PATH"]:
-            os.environ["PATH"] += os.pathsep + path
-        if "SUMO_HOME" not in os.environ:
-             os.environ["SUMO_HOME"] = os.path.dirname(path)
+from flowstate.env import TrafficLightEnv
 
-from traffic_env import TrafficLightEnv
-
-class SmartController:
+class HeuristicController:
     """
-    A heuristic controller that acts like a trained model but uses strict logic
-    to ensure the showcase demonstrates efficient queue clearing.
+    Rule-based stand-in for the trained model (same predict() interface), used so the
+    live demo is deterministic. The PPO model's results come from evaluate.py.
     """
-    def __init__(self, item_id="flowstate_controller"):
+    def __init__(self):
         self.tls_id = None
         
     def predict(self, obs, deterministic=True):
@@ -129,39 +111,30 @@ def run_demo_simulation(env, model=None, label="Simulation"):
 
 if __name__ == "__main__":
     print("="*60)
-    print("       FLUX SHOWCASE DEMO")
+    print("       FLOWSTATE SHOWCASE DEMO")
     print("="*60)
     print("This script will run two visualizations in the SUMO GUI.")
     print("1. Baseline (Standard Fixed-Time Signal)")
-    print("2. Flux AI (Optimized)")
+    print("2. FlowState rule-based controller (queue-aware)")
     print("\nInstructions:")
     print("- When the SUMO window opens, click the green 'Play' button.")
     print("- You can adjust the delay slider in SUMO to speed up/slow down.")
-    print("- We recommended recording your screen now if making a video.")
+    print("- We recommend recording your screen now if making a video.")
     print("="*60)
     
     input("Press Enter to start Part 1: BASELINE (Expect queues)...")
     
-    # Run Baseline
-    # Note: TrafficLightEnv doesn't natively support loading a custom view settings file easily via constructor argument 
-    # unless we modify it, but we can load it manually via traci if connected, OR better yet,
-    # we can trust the user to just watch.
-    # Actually, we can pass "--gui-settings-file" to the sumocfg or command.
-    # Let's modify the env instantiation to include this if we could, but TrafficLightEnv hardcodes the command.
-    # For now, we will rely on standard GUI.
-    
-    env = TrafficLightEnv(net_file="intersection.net.xml", route_file="traffic.rou.xml", use_gui=True)
+    env = TrafficLightEnv(use_gui=True)
     run_demo_simulation(env, model=None, label="Baseline (Fixed Timing)")
     env.close()
     
     print("\n" + "-"*40)
     print("Baseline Demo Finished.")
-    input("Press Enter to start Part 2: FLUX AI (Watch the queues disappear!)...")
+    input("Press Enter to start Part 2: FLOWSTATE controller (watch the queues clear)...")
     
-    env = TrafficLightEnv(net_file="intersection.net.xml", route_file="traffic.rou.xml", use_gui=True)
-    # model = PPO.load("flux_ppo_model")
-    model = SmartController() # Use Smart Heuristic for Showcase reliability
-    run_demo_simulation(env, model=model, label="Flux AI (Smart Control)")
+    env = TrafficLightEnv(use_gui=True)
+    model = HeuristicController()
+    run_demo_simulation(env, model=model, label="FlowState (rule-based controller)")
     env.close()
     
     print("\n" + "="*60)
