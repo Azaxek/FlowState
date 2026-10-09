@@ -1,69 +1,9 @@
 import traci
 
+from stable_baselines3 import PPO
+
+from flowstate import config
 from flowstate.env import TrafficLightEnv
-
-class HeuristicController:
-    """
-    Rule-based stand-in for the trained model (same predict() interface), used so the
-    live demo is deterministic. The PPO model's results come from evaluate.py.
-    """
-    def __init__(self):
-        self.tls_id = None
-        
-    def predict(self, obs, deterministic=True):
-        # Action 0: Keep Phase
-        # Action 1: Switch Phase
-        
-        # We need to know the current phase to decide.
-        # Since we don't have it in 'obs' easily, we peek at traci.
-        try:
-            tls_ids = traci.trafficlight.getIDList()
-            if not tls_ids:
-                return 0, None
-            self.tls_id = tls_ids[0]
-            current_phase = traci.trafficlight.getPhase(self.tls_id)
-        except:
-            return 0, None
-
-        # Parse Obs: [North, South, East, West]
-        north_q = obs[0]
-        south_q = obs[1]
-        east_q = obs[2]
-        west_q = obs[3]
-        
-        ns_pressure = north_q + south_q
-        ew_pressure = east_q + west_q
-        
-        # Logic
-        # 0 = NS Green, 1 = NS Yellow
-        # 2 = EW Green, 3 = EW Yellow
-        
-        if current_phase == 0: # NS Green
-            # Switch if NS is empty AND EW has traffic
-            if ns_pressure < 5 and ew_pressure > 5:
-                return 1, None # Switch to Yellow
-            # Or if EW is SUPER backed up, force switch (fairness)
-            if ew_pressure > 50:
-                return 1, None
-            return 0, None # Keep Green
-            
-        elif current_phase == 1: # NS Yellow
-            # Always switch from yellow to red
-            return 1, None
-            
-        elif current_phase == 2: # EW Green
-            # Switch if EW is empty AND NS has traffic
-            if ew_pressure < 5 and ns_pressure > 5:
-                return 1, None # Switch to Yellow
-            # Fairness
-            if ns_pressure > 50:
-                return 1, None
-            return 0, None
-            
-        elif current_phase == 3: # EW Yellow
-            return 1, None
-            
-        return 0, None
 
 def run_demo_simulation(env, model=None, label="Simulation"):
     print(f"\nLAUNCHING: {label}")
@@ -115,7 +55,7 @@ if __name__ == "__main__":
     print("="*60)
     print("This script will run two visualizations in the SUMO GUI.")
     print("1. Baseline (Standard Fixed-Time Signal)")
-    print("2. FlowState rule-based controller (queue-aware)")
+    print("2. FlowState (trained PPO agent)")
     print("\nInstructions:")
     print("- When the SUMO window opens, click the green 'Play' button.")
     print("- You can adjust the delay slider in SUMO to speed up/slow down.")
@@ -130,11 +70,11 @@ if __name__ == "__main__":
     
     print("\n" + "-"*40)
     print("Baseline Demo Finished.")
-    input("Press Enter to start Part 2: FLOWSTATE controller (watch the queues clear)...")
+    input("Press Enter to start Part 2: FLOWSTATE PPO agent (watch the queues clear)...")
     
     env = TrafficLightEnv(use_gui=True)
-    model = HeuristicController()
-    run_demo_simulation(env, model=model, label="FlowState (rule-based controller)")
+    model = PPO.load(config.MODEL_PATH)
+    run_demo_simulation(env, model=model, label="FlowState (PPO agent)")
     env.close()
     
     print("\n" + "="*60)
