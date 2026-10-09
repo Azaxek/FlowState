@@ -1,0 +1,9 @@
+Average wait per step (lower is better), mean of 3 seeds
+Condition                    Fixed  Original   original vs fixed
+clear                        42.20     29.11              +31.0%
+light rain                   53.45     38.55              +27.9%
+heavy rain                   51.07     48.02               +6.0%
+fog                          45.46     32.83              +27.8%
+night, low-res camera        42.20     32.57              +22.8%
+storm + poor camera          77.03     40.02              +48.1%
+rush hour                    78.32     55.55              +29.1%

@@ -8,6 +8,9 @@ from flowstate import config
 class IntersectionCamera:
     def __init__(self, net_file=config.NET_FILE, detection_distance=50):
         self.detection_distance = detection_distance
+        self.noise_std = 0.05     # relative Gaussian noise on each count
+        self.miss_rate = 0.0      # chance an in-range vehicle goes undetected
+        self.rng = random.Random()
         self.directions = ["North", "South", "East", "West"]
         self.lane_map = {d: [] for d in self.directions}
         
@@ -100,7 +103,7 @@ class IntersectionCamera:
         """
         Returns a state vector: [North_Density, South_Density, East_Density, West_Density].
         Counts cars within detection_distance of the stop bar.
-        Adds 5% Gaussian noise.
+        Adds Gaussian noise (5% by default) and can drop detections to mimic a poor camera.
         """
         state = []
         for d in self.directions:
@@ -118,6 +121,8 @@ class IntersectionCamera:
                             # Stop bar is at the end of the lane (pos = length)
                             # Distance to stop bar = length - pos
                             if (length - pos) <= self.detection_distance:
+                                if self.miss_rate and self.rng.random() < self.miss_rate:
+                                    continue
                                 count += 1
                         except traci.exceptions.TraCIException:
                             # Vehicle might have moved or disappeared
@@ -129,7 +134,7 @@ class IntersectionCamera:
             # Interpreting "5% Gaussian noise" as noise with std_dev = 0.05 * count
             # This makes the error proportional to the count.
             if count > 0:
-                noise = random.gauss(0, 0.05 * count)
+                noise = self.rng.gauss(0, self.noise_std * count)
                 count += noise
             
             # Ensure non-negative

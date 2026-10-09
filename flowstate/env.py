@@ -6,6 +6,7 @@ import traci
 import sumolib
 
 from flowstate import config
+from flowstate import conditions
 from flowstate.camera import IntersectionCamera
 
 class TrafficLightEnv(gym.Env):
@@ -14,13 +15,18 @@ class TrafficLightEnv(gym.Env):
     """
     metadata = {'render_modes': ['human']}
 
-    def __init__(self, net_file=config.NET_FILE, route_file=config.ROUTE_FILE, use_gui=False, detection_dist=50):
+    def __init__(self, net_file=config.NET_FILE, route_file=config.ROUTE_FILE, use_gui=False, detection_dist=50,
+                 condition=None, randomize=False, sumo_seed=None):
         super(TrafficLightEnv, self).__init__()
         
         self.net_file = net_file
         self.route_file = route_file
         self.use_gui = use_gui
         self.detection_dist = detection_dist
+        # condition: fixed operating conditions (see conditions.py); randomize: new random ones every episode
+        self.condition = condition or conditions.DEFAULT
+        self.randomize = randomize
+        self.sumo_seed = sumo_seed  # fixed SUMO seed for repeatable evaluation runs
         
         # Define Action Space:
         # 0: Keep current phase
@@ -40,6 +46,10 @@ class TrafficLightEnv(gym.Env):
 
     def reset(self, seed=None, options=None):
         super().reset(seed=seed)
+        cond = conditions.sample(self.np_random) if self.randomize else self.condition
+        if options and options.get('condition'):
+            cond = options['condition']
+        self.active_condition = cond
         
         # Close existing simulation if running
         try:
@@ -72,6 +82,12 @@ class TrafficLightEnv(gym.Env):
             "--waiting-time-memory", "1000",
             "--time-to-teleport", "-1" # Disable teleport for accurate waiting time
         ]
+        if cond.scale != 1.0:
+            sumo_cmd.extend(["--scale", str(cond.scale)])
+        if self.sumo_seed is not None:
+            sumo_cmd.extend(["--seed", str(self.sumo_seed)])
+        elif self.randomize or seed is not None:
+            sumo_cmd.extend(["--seed", str(int(self.np_random.integers(1, 2**31 - 1)))])
         
         if self.use_gui and os.path.exists(config.VIEW_SETTINGS):
             sumo_cmd.extend(["--gui-settings-file", config.VIEW_SETTINGS])
@@ -87,6 +103,8 @@ class TrafficLightEnv(gym.Env):
         # but get_state does.
         if self.camera is None:
              self.camera = IntersectionCamera(net_file=self.net_file, detection_distance=50)
+
+        self._apply_condition(cond)
 
         # Get Traffic Light ID
         # Assume there is one TLS in the network
@@ -105,6 +123,18 @@ class TrafficLightEnv(gym.Env):
         info = {}
         
         return observation, info
+
+    def _apply_condition(self, cond):
+        """Apply driving behaviour and camera settings for this episode."""
+        traci.vehicletype.setMaxSpeed("car", 16.67 * cond.speed_factor)
+        traci.vehicletype.setAccel("car", 0.8 * cond.accel_factor)
+        traci.vehicletype.setDecel("car", 4.5 * cond.decel_factor)
+        traci.vehicletype.setImperfection("car", cond.sigma)
+        traci.vehicletype.setTau("car", cond.tau)
+        self.camera.detection_distance = cond.detection_dist
+        self.camera.noise_std = cond.noise_std
+        self.camera.miss_rate = cond.miss_rate
+        self.camera.rng.seed(int(self.np_random.integers(0, 2**31 - 1)))
 
     def _get_obs(self):
         state = self.camera.get_state()
