@@ -1,6 +1,6 @@
 # FlowState
 
-**AI traffic-signal control that learns from a camera feed instead of expensive road sensors.**
+AI traffic-signal control that learns from a camera feed instead of expensive road sensors.
 
 FlowState trains a reinforcement-learning agent to run a four-way intersection. In simulation, it cut average vehicle wait time by **43%** compared with a standard fixed-timing signal, without reducing how many cars get through.
 
